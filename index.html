@@ -26,6 +26,10 @@
       <div id="addMemberSection" class="hidden pt-3 border-t space-y-2 bg-amber-50 p-3 rounded-lg border border-amber-200">
         <div class="text-xs font-bold text-amber-800">⚠️ 查無此會員，輸入姓名快速建立：</div>
         <input id="newName" type="text" placeholder="會員姓名" class="w-full p-2 border rounded-lg text-sm bg-white">
+        <div>
+          <label class="block text-xs font-bold text-amber-800 mb-1">生日（選填）</label>
+          <input id="newBirthday" type="date" class="w-full p-2 border rounded-lg text-sm bg-white">
+        </div>
         <button onclick="createNewMember()" class="w-full bg-amber-600 text-white py-2 rounded-lg font-bold text-sm">建立會員</button>
       </div>
     </div>
@@ -73,10 +77,24 @@
           <input id="depositAmount" type="number" placeholder="0" class="w-full p-3 border rounded-xl font-mono text-lg font-bold text-emerald-600">
         </div>
         <div>
+          <label class="block text-xs font-bold text-slate-500 mb-1">付款方式</label>
+          <div class="flex gap-2">
+            <button type="button" onclick="selectPayMethod('現金')" id="payBtn_現金" class="flex-1 py-2 rounded-lg text-sm font-bold border-2 border-emerald-600 bg-emerald-600 text-white">現金</button>
+            <button type="button" onclick="selectPayMethod('匯款')" id="payBtn_匯款" class="flex-1 py-2 rounded-lg text-sm font-bold border-2 border-slate-200 text-slate-500">匯款</button>
+            <button type="button" onclick="selectPayMethod('刷卡')" id="payBtn_刷卡" class="flex-1 py-2 rounded-lg text-sm font-bold border-2 border-slate-200 text-slate-500">刷卡</button>
+          </div>
+        </div>
+        <div>
           <label class="block text-xs font-bold text-slate-500 mb-1">經手店員</label>
           <input id="depositClerk" type="text" placeholder="店員姓名" class="w-full p-2 border rounded-lg text-sm">
         </div>
         <button onclick="submitDeposit()" class="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold shadow-md hover:bg-emerald-700">確認儲值</button>
+      </div>
+
+      <!-- 交易紀錄 -->
+      <div class="pt-3 border-t space-y-2">
+        <h3 class="text-sm font-bold text-slate-600">📜 交易紀錄</h3>
+        <div id="txHistory" class="space-y-2 max-h-72 overflow-y-auto">尚無資料</div>
       </div>
     </div>
   </div>
@@ -103,6 +121,19 @@
 
     let currentMember = null;
     let sigPad = null;
+    let selectedPayMethod = '現金';
+
+    function selectPayMethod(method) {
+      selectedPayMethod = method;
+      ['現金', '匯款', '刷卡'].forEach(m => {
+        const btn = document.getElementById('payBtn_' + m);
+        if (m === method) {
+          btn.className = "flex-1 py-2 rounded-lg text-sm font-bold border-2 border-emerald-600 bg-emerald-600 text-white";
+        } else {
+          btn.className = "flex-1 py-2 rounded-lg text-sm font-bold border-2 border-slate-200 text-slate-500";
+        }
+      });
+    }
 
     async function searchMember() {
       const phone = document.getElementById('searchPhone').value.trim();
@@ -121,18 +152,46 @@
       document.getElementById('displayPhone').innerText = data.phone;
       document.getElementById('displayBalance').innerText = '$' + data.balance;
       document.getElementById('memberCard').classList.remove('hidden');
+      loadTxHistory(data.id);
+    }
+
+    async function loadTxHistory(memberId) {
+      const box = document.getElementById('txHistory');
+      box.innerHTML = '載入中...';
+      const { data: t } = await db.from('transactions').select('*').eq('member_id', memberId).order('created_at', { ascending: false }).limit(20);
+      const list = t || [];
+      if (list.length === 0) {
+        box.innerHTML = '<div class="text-slate-400 text-sm text-center py-2">尚無交易紀錄</div>';
+        return;
+      }
+      box.innerHTML = list.map(item => `
+        <div class="p-3 bg-slate-50 rounded-lg border text-xs flex justify-between items-center gap-2">
+          <div>
+            <div class="${item.type === 'deposit' ? 'text-emerald-600' : 'text-rose-600'} font-bold">
+              ${item.type === 'deposit' ? '儲值' : '扣款'} $${item.amount}
+              ${item.payment_method ? `<span class="text-slate-400 font-normal">（${item.payment_method}）</span>` : ''}
+            </div>
+            <div class="text-slate-400 mt-1">${new Date(item.created_at).toLocaleString()} | 店員: ${item.clerk_name || '櫃檯'}</div>
+          </div>
+          <div class="shrink-0">
+            ${item.signature ? `<img src="${item.signature}" class="h-10 border rounded bg-white">` : '<span class="text-slate-300">無簽名</span>'}
+          </div>
+        </div>
+      `).join('');
     }
 
     async function createNewMember() {
       const phone = document.getElementById('searchPhone').value.trim();
       const name = document.getElementById('newName').value.trim();
+      const birthday = document.getElementById('newBirthday').value || null;
       if (!name) return alert('請輸入姓名');
 
-      const { error } = await db.from('members').insert([{ name, phone, balance: 0 }]);
+      const { error } = await db.from('members').insert([{ name, phone, balance: 0, birthday }]);
       if (error) return alert('建立失敗：' + error.message);
 
       alert('建立成功！');
       document.getElementById('newName').value = '';
+      document.getElementById('newBirthday').value = '';
       searchMember();
     }
 
@@ -194,10 +253,11 @@
 
       const newBal = currentMember.balance + amt;
       await db.from('members').update({ balance: newBal }).eq('id', currentMember.id);
-      await db.from('transactions').insert([{ member_id: currentMember.id, type: 'deposit', amount: amt, clerk_name: clerk }]);
+      await db.from('transactions').insert([{ member_id: currentMember.id, type: 'deposit', amount: amt, clerk_name: clerk, payment_method: selectedPayMethod }]);
 
       alert('儲值成功！');
       document.getElementById('depositAmount').value = '';
+      selectPayMethod('現金');
       searchMember();
     }
   </script>
