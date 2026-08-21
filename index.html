@@ -113,6 +113,11 @@
     </div>
   </div>
 
+  <!-- 簽名放大檢視彈窗 -->
+  <div id="sigZoomModal" onclick="closeSigZoom()" class="fixed inset-0 bg-black/80 hidden items-center justify-center p-4 z-[60] cursor-pointer">
+    <img id="sigZoomImg" src="" class="max-w-full max-h-full bg-white rounded-lg shadow-2xl">
+  </div>
+
   <script>
     const SUPABASE_URL = 'https://lqypbzwdhklunquvrrer.supabase.co';
     // ⚠️ 請去 Supabase 後台 Settings → API 核對這把 key 是否正確（之前發現跟 admin.html 不一致）
@@ -174,7 +179,7 @@
             <div class="text-slate-400 mt-1">${new Date(item.created_at).toLocaleString()} | 店員: ${item.clerk_name || '櫃檯'}</div>
           </div>
           <div class="shrink-0">
-            ${item.signature ? `<img src="${item.signature}" class="h-10 border rounded bg-white">` : '<span class="text-slate-300">無簽名</span>'}
+            ${item.signature ? `<img src="${item.signature}" onclick="showSigZoom('${item.signature}')" class="h-10 border rounded bg-white cursor-pointer hover:opacity-80">` : '<span class="text-slate-300">無簽名</span>'}
           </div>
         </div>
       `).join('');
@@ -228,6 +233,18 @@
     }
 
     function clearSig() { if (sigPad) sigPad.clear(); }
+
+    function showSigZoom(src) {
+      document.getElementById('sigZoomImg').src = src;
+      const modal = document.getElementById('sigZoomModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeSigZoom() {
+      document.getElementById('sigZoomModal').classList.add('hidden');
+      document.getElementById('sigZoomModal').classList.remove('flex');
+    }
 
     async function submitSpend() {
       if (!sigPad || sigPad.isEmpty()) return alert('請先簽名');

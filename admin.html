@@ -63,9 +63,14 @@
   </div>
   <!-- mainContent 結束 -->
 
+  <!-- 簽名放大檢視彈窗 -->
+  <div id="sigZoomModal" onclick="closeSigZoom()" class="fixed inset-0 bg-black/80 hidden items-center justify-center p-4 z-[60] cursor-pointer">
+    <img id="sigZoomImg" src="" class="max-w-full max-h-full bg-white rounded-lg shadow-2xl">
+  </div>
+
   <script>
     // ---- 密碼驗證（前端簡易防護，非絕對安全）----
-    const ADMIN_PASSWORD = "4229531"; // ← 改成你要的密碼
+    const ADMIN_PASSWORD = "請改成你自己的密碼"; // ← 改成你要的密碼
 
     function checkPwd() {
       const input = document.getElementById('adminPwd').value;
@@ -131,7 +136,7 @@
             <div class="text-slate-400">${new Date(item.created_at).toLocaleString()} | 店員: ${item.clerk_name || '櫃檯'}</div>
           </div>
           <div>
-            ${item.signature ? `<img src="${item.signature}" class="h-10 border rounded bg-white">` : '<span class="text-slate-300">無簽名</span>'}
+            ${item.signature ? `<img src="${item.signature}" onclick="showSigZoom('${item.signature}')" class="h-10 border rounded bg-white cursor-pointer hover:opacity-80">` : '<span class="text-slate-300">無簽名</span>'}
           </div>
         </div>
       `).join('');
@@ -174,6 +179,18 @@
       a.href = URL.createObjectURL(blob);
       a.download = filename;
       a.click();
+    }
+
+    function showSigZoom(src) {
+      document.getElementById('sigZoomImg').src = src;
+      const modal = document.getElementById('sigZoomModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeSigZoom() {
+      document.getElementById('sigZoomModal').classList.add('hidden');
+      document.getElementById('sigZoomModal').classList.remove('flex');
     }
   </script>
 </body>
