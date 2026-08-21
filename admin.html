@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>會員系統 - 後台管理</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.min.js"></script>
+</head>
+<body class="bg-slate-100 text-slate-800 p-4">
+
+  <!-- 密碼登入畫面 -->
+  <div id="loginGate" class="fixed inset-0 bg-slate-900 flex items-center justify-center z-50 p-4">
+    <div class="bg-white w-full max-w-sm p-6 rounded-xl space-y-4 shadow-xl">
+      <h2 class="text-lg font-bold text-slate-800">🔒 後台管理登入</h2>
+      <input id="adminPwd" type="password" placeholder="請輸入管理密碼" class="w-full p-3 border rounded-xl" onkeydown="if(event.key==='Enter') checkPwd()">
+      <button onclick="checkPwd()" class="w-full bg-slate-800 text-white py-3 rounded-xl font-bold">登入</button>
+      <p id="pwdError" class="text-rose-600 text-xs hidden">密碼錯誤，請重新輸入</p>
+    </div>
+  </div>
+
+  <div id="mainContent" class="max-w-4xl mx-auto space-y-4 hidden">
+    <div class="bg-slate-800 text-white p-4 rounded-xl flex justify-between items-center">
+      <h1 class="text-xl font-bold">POS 後台管理系統</h1>
+      <a href="index.html" class="text-xs bg-slate-700 px-3 py-1.5 rounded-lg hover:bg-slate-600">返回前台</a>
+    </div>
+
+    <!-- 備份下載 -->
+    <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex justify-between items-center">
+      <span class="text-sm font-bold text-emerald-800">💾 資料一鍵備份 (Excel CSV)</span>
+      <div class="space-x-2">
+        <button onclick="exportMembers()" class="bg-emerald-600 text-white text-xs px-3 py-2 rounded-lg font-bold">匯出會員清單</button>
+        <button onclick="exportTx()" class="bg-teal-600 text-white text-xs px-3 py-2 rounded-lg font-bold">匯出交易紀錄</button>
+      </div>
+    </div>
+
+    <!-- 會員列表 -->
+    <div class="bg-white p-4 rounded-xl shadow-sm border space-y-3">
+      <h2 class="font-bold text-slate-700">👤 全站會員管理</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm">
+          <thead class="bg-slate-50 border-b">
+            <tr>
+              <th class="p-2">姓名</th>
+              <th class="p-2">電話</th>
+              <th class="p-2">餘額</th>
+              <th class="p-2 text-right">操作</th>
+            </tr>
+          </thead>
+          <tbody id="memberList" class="divide-y">
+            <tr><td colspan="4" class="p-3 text-center text-slate-400">載入中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 交易歷史與簽名紀錄 -->
+    <div class="bg-white p-4 rounded-xl shadow-sm border space-y-3">
+      <h2 class="font-bold text-slate-700">📜 交易歷史與簽名紀錄</h2>
+      <div id="txList" class="space-y-2 max-h-96 overflow-y-auto">載入中...</div>
+    </div>
+  </div>
+  <!-- mainContent 結束 -->
+
+  <script>
+    // ---- 密碼驗證（前端簡易防護，非絕對安全）----
+    const ADMIN_PASSWORD = "4229531"; // ← 改成你要的密碼
+
+    function checkPwd() {
+      const input = document.getElementById('adminPwd').value;
+      if (input === ADMIN_PASSWORD) {
+        document.getElementById('loginGate').classList.add('hidden');
+        document.getElementById('mainContent').classList.remove('hidden');
+        sessionStorage.setItem('admin_ok', '1');
+        loadData();
+      } else {
+        document.getElementById('pwdError').classList.remove('hidden');
+      }
+    }
+
+    // 如果同一個瀏覽器分頁已經驗證過，就不用重新輸入
+    if (sessionStorage.getItem('admin_ok') === '1') {
+      window.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('loginGate').classList.add('hidden');
+        document.getElementById('mainContent').classList.remove('hidden');
+      });
+    }
+    const SUPABASE_URL = 'https://lqypbzwdhklunquvrrer.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_MDnkgICBUk1yzEH7yrpyVQ_a00jvOfb';
+    const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let membersData = [];
+    let txData = [];
+
+    // 若已登入過，頁面重新整理時也要重新抓資料
+    if (sessionStorage.getItem('admin_ok') === '1') {
+      window.addEventListener('DOMContentLoaded', loadData);
+    }
+
+    async function loadData() {
+      const { data: m } = await db.from('members').select('*').order('created_at', { ascending: false });
+      membersData = m || [];
+      
+      const tbody = document.getElementById('memberList');
+      tbody.innerHTML = membersData.map(item => `
+        <tr>
+          <td class="p-2 font-bold">${item.name}</td>
+          <td class="p-2 font-mono">${item.phone}</td>
+          <td class="p-2 text-emerald-600 font-bold">$${item.balance}</td>
+          <td class="p-2 text-right">
+            <button onclick="editM('${item.id}', '${item.name}', '${item.phone}', ${item.balance})" class="bg-slate-200 text-xs px-2 py-1 rounded">編輯</button>
+            <button onclick="delM('${item.id}')" class="bg-rose-100 text-rose-600 text-xs px-2 py-1 rounded">刪除</button>
+          </td>
+        </tr>
+      `).join('');
+
+      const { data: t } = await db.from('transactions').select('*, members(name, phone)').order('created_at', { ascending: false });
+      txData = t || [];
+
+      const txBox = document.getElementById('txList');
+      txBox.innerHTML = txData.map(item => `
+        <div class="p-3 bg-slate-50 rounded-lg border text-xs flex justify-between items-center">
+          <div>
+            <div class="font-bold">${item.members?.name || '未知'} (${item.members?.phone || '無'})</div>
+            <div class="${item.type === 'deposit' ? 'text-emerald-600' : 'text-rose-600'} font-bold">
+              ${item.type === 'deposit' ? '儲值' : '扣款'} $${item.amount}
+            </div>
+            <div class="text-slate-400">${new Date(item.created_at).toLocaleString()} | 店員: ${item.clerk_name || '櫃檯'}</div>
+          </div>
+          <div>
+            ${item.signature ? `<img src="${item.signature}" class="h-10 border rounded bg-white">` : '<span class="text-slate-300">無簽名</span>'}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function editM(id, name, phone, bal) {
+      const newName = prompt('修改姓名：', name);
+      const newPhone = prompt('修改電話：', phone);
+      const newBal = parseInt(prompt('修改餘額：', bal));
+      if (newName && newPhone && !isNaN(newBal)) {
+        await db.from('members').update({ name: newName, phone: newPhone, balance: newBal }).eq('id', id);
+        loadData();
+      }
+    }
+
+    async function delM(id) {
+      if (confirm('確定刪除會員？')) {
+        await db.from('transactions').delete().eq('member_id', id);
+        await db.from('members').delete().eq('id', id);
+        loadData();
+      }
+    }
+
+    function exportMembers() {
+      let csv = "姓名,電話,餘額\n";
+      membersData.forEach(m => csv += `"${m.name}","${m.phone}",${m.balance}\n`);
+      dlCSV("會員名單.csv", csv);
+    }
+
+    function exportTx() {
+      let csv = "會員,電話,類型,金額,店員,時間\n";
+      txData.forEach(t => csv += `"${t.members?.name}","${t.members?.phone}","${t.type}",${t.amount},"${t.clerk_name}","${t.created_at}"\n`);
+      dlCSV("交易紀錄.csv", csv);
+    }
+
+    function dlCSV(filename, text) {
+      const blob = new Blob(["\uFEFF" + text], { type: 'text/csv;charset=utf-8;' });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+    }
+  </script>
+</body>
+</html>
+

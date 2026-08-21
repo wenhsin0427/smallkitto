@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>會員系統 - 前台</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.min.js"></script>
+</head>
+<body class="bg-slate-100 text-slate-800 p-4">
+  <div class="max-w-md mx-auto space-y-4">
+    <div class="bg-slate-800 text-white p-4 rounded-xl text-center">
+      <h1 class="text-xl font-bold">POS 會員前台</h1>
+    </div>
+
+    <!-- 搜尋與新增區 -->
+    <div class="bg-white p-5 rounded-xl shadow-sm border space-y-3">
+      <label class="block text-sm font-bold text-slate-700">搜尋會員手機號碼</label>
+      <div class="flex gap-2">
+        <input id="searchPhone" type="tel" placeholder="09xxxxxxxx" class="flex-1 p-3 border rounded-xl font-mono text-lg outline-none focus:border-indigo-500">
+        <button onclick="searchMember()" class="bg-indigo-600 text-white px-5 rounded-xl font-bold hover:bg-indigo-700">搜尋</button>
+      </div>
+
+      <!-- 查無會員時顯示 -->
+      <div id="addMemberSection" class="hidden pt-3 border-t space-y-2 bg-amber-50 p-3 rounded-lg border border-amber-200">
+        <div class="text-xs font-bold text-amber-800">⚠️ 查無此會員，輸入姓名快速建立：</div>
+        <input id="newName" type="text" placeholder="會員姓名" class="w-full p-2 border rounded-lg text-sm bg-white">
+        <button onclick="createNewMember()" class="w-full bg-amber-600 text-white py-2 rounded-lg font-bold text-sm">建立會員</button>
+      </div>
+    </div>
+
+    <!-- 會員卡片與操作 -->
+    <div id="memberCard" class="hidden bg-white p-5 rounded-xl shadow-sm border space-y-4">
+      <div class="bg-slate-50 p-3 rounded-lg flex justify-between items-center border">
+        <div>
+          <div id="displayName" class="font-bold text-lg">---</div>
+          <div id="displayPhone" class="text-xs text-slate-400 font-mono">---</div>
+        </div>
+        <div class="text-right">
+          <div class="text-xs text-slate-400">餘額</div>
+          <div id="displayBalance" class="text-xl font-bold text-emerald-600">$0</div>
+        </div>
+      </div>
+
+      <!-- 切換頁籤 -->
+      <div class="flex border-b text-sm font-bold">
+        <button id="btnSpend" onclick="switchTab('spend')" class="flex-1 py-2 border-b-2 border-rose-600 text-rose-600">消費扣款</button>
+        <button id="btnDeposit" onclick="switchTab('deposit')" class="flex-1 py-2 text-slate-400">會員儲值</button>
+      </div>
+
+      <!-- 扣款輸入框 -->
+      <div id="secSpend" class="space-y-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-500 mb-1">本次扣款金額 ($)</label>
+          <input id="spendAmount" type="number" placeholder="0" class="w-full p-3 border rounded-xl font-mono text-lg font-bold">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-500 mb-1">當日消費總額 ($)</label>
+          <input id="totalSpend" type="number" placeholder="選填" class="w-full p-2 border rounded-lg text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-500 mb-1">經手店員</label>
+          <input id="clerkName" type="text" placeholder="店員姓名" class="w-full p-2 border rounded-lg text-sm">
+        </div>
+        <button onclick="openSigModal()" class="w-full bg-rose-600 text-white py-3 rounded-xl font-bold shadow-md hover:bg-rose-700">✍️ 前往顧客簽名扣款</button>
+      </div>
+
+      <!-- 儲值輸入框 -->
+      <div id="secDeposit" class="hidden space-y-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-500 mb-1">儲值金額 ($)</label>
+          <input id="depositAmount" type="number" placeholder="0" class="w-full p-3 border rounded-xl font-mono text-lg font-bold text-emerald-600">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-500 mb-1">經手店員</label>
+          <input id="depositClerk" type="text" placeholder="店員姓名" class="w-full p-2 border rounded-lg text-sm">
+        </div>
+        <button onclick="submitDeposit()" class="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold shadow-md hover:bg-emerald-700">確認儲值</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 簽名彈窗 -->
+  <div id="sigModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-50">
+    <div class="bg-white w-full max-w-sm p-4 rounded-xl space-y-3">
+      <h3 class="font-bold text-slate-800">請顧客簽名確認</h3>
+      <div class="border border-slate-300 rounded-lg bg-slate-50">
+        <canvas id="sigCanvas" class="w-full h-40 touch-none"></canvas>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="clearSig()" class="flex-1 py-2 bg-slate-200 rounded-lg text-sm font-bold">清除</button>
+        <button onclick="submitSpend()" class="flex-1 py-2 bg-rose-600 text-white rounded-lg text-sm font-bold">確認交易</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://lqypbzwdhklunquvrrer.supabase.co';
+    // ⚠️ 請去 Supabase 後台 Settings → API 核對這把 key 是否正確（之前發現跟 admin.html 不一致）
+    const SUPABASE_KEY = 'sb_publishable_MDnkgICBUk1yzEH7yrpyVQ_aOOjvOfb';
+    const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let currentMember = null;
+    let sigPad = null;
+
+    async function searchMember() {
+      const phone = document.getElementById('searchPhone').value.trim();
+      if (!phone) return alert('請輸入電話');
+      document.getElementById('addMemberSection').classList.add('hidden');
+
+      const { data } = await db.from('members').select('*').eq('phone', phone).single();
+      if (!data) {
+        document.getElementById('memberCard').classList.add('hidden');
+        document.getElementById('addMemberSection').classList.remove('hidden');
+        return;
+      }
+
+      currentMember = data;
+      document.getElementById('displayName').innerText = data.name;
+      document.getElementById('displayPhone').innerText = data.phone;
+      document.getElementById('displayBalance').innerText = '$' + data.balance;
+      document.getElementById('memberCard').classList.remove('hidden');
+    }
+
+    async function createNewMember() {
+      const phone = document.getElementById('searchPhone').value.trim();
+      const name = document.getElementById('newName').value.trim();
+      if (!name) return alert('請輸入姓名');
+
+      const { error } = await db.from('members').insert([{ name, phone, balance: 0 }]);
+      if (error) return alert('建立失敗：' + error.message);
+
+      alert('建立成功！');
+      document.getElementById('newName').value = '';
+      searchMember();
+    }
+
+    function switchTab(type) {
+      if (type === 'spend') {
+        document.getElementById('btnSpend').className = "flex-1 py-2 border-b-2 border-rose-600 text-rose-600";
+        document.getElementById('btnDeposit').className = "flex-1 py-2 text-slate-400";
+        document.getElementById('secSpend').classList.remove('hidden');
+        document.getElementById('secDeposit').classList.add('hidden');
+      } else {
+        document.getElementById('btnDeposit').className = "flex-1 py-2 border-b-2 border-emerald-600 text-emerald-600";
+        document.getElementById('btnSpend').className = "flex-1 py-2 text-slate-400";
+        document.getElementById('secDeposit').classList.remove('hidden');
+        document.getElementById('secSpend').classList.add('hidden');
+      }
+    }
+
+    function openSigModal() {
+      const amt = parseInt(document.getElementById('spendAmount').value);
+      if (!amt || amt <= 0) return alert('請輸入金額');
+      if (amt > currentMember.balance) return alert('餘額不足！');
+
+      const modal = document.getElementById('sigModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+
+      setTimeout(() => {
+        const canvas = document.getElementById('sigCanvas');
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
+        if (!sigPad) sigPad = new SignaturePad(canvas, { backgroundColor: 'rgb(248, 250, 252)' });
+        else sigPad.clear();
+      }, 100);
+    }
+
+    function clearSig() { if (sigPad) sigPad.clear(); }
+
+    async function submitSpend() {
+      if (!sigPad || sigPad.isEmpty()) return alert('請先簽名');
+      const amt = parseInt(document.getElementById('spendAmount').value);
+      const total = parseInt(document.getElementById('totalSpend').value) || null;
+      const clerk = document.getElementById('clerkName').value.trim() || '櫃檯';
+      const sigData = sigPad.toDataURL();
+
+      const newBal = currentMember.balance - amt;
+      await db.from('members').update({ balance: newBal }).eq('id', currentMember.id);
+      await db.from('transactions').insert([{ member_id: currentMember.id, type: 'spend', amount: amt, total_spend: total, clerk_name: clerk, signature: sigData }]);
+
+      alert('扣款成功！');
+      document.getElementById('sigModal').classList.add('hidden');
+      document.getElementById('spendAmount').value = '';
+      searchMember();
+    }
+
+    async function submitDeposit() {
+      const amt = parseInt(document.getElementById('depositAmount').value);
+      const clerk = document.getElementById('depositClerk').value.trim() || '櫃檯';
+      if (!amt || amt <= 0) return alert('請輸入正確金額');
+
+      const newBal = currentMember.balance + amt;
+      await db.from('members').update({ balance: newBal }).eq('id', currentMember.id);
+      await db.from('transactions').insert([{ member_id: currentMember.id, type: 'deposit', amount: amt, clerk_name: clerk }]);
+
+      alert('儲值成功！');
+      document.getElementById('depositAmount').value = '';
+      searchMember();
+    }
+  </script>
+</body>
+</html>
+
