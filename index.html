@@ -74,7 +74,8 @@
       <div id="secDeposit" class="hidden space-y-3">
         <div>
           <label class="block text-xs font-bold text-slate-500 mb-1">儲值金額 ($)</label>
-          <input id="depositAmount" type="number" placeholder="0" class="w-full p-3 border rounded-xl font-mono text-lg font-bold text-emerald-600">
+          <input id="depositAmount" type="number" placeholder="0" oninput="updateBonusPreview()" class="w-full p-3 border rounded-xl font-mono text-lg font-bold text-emerald-600">
+          <div id="bonusPreview" class="text-xs text-amber-600 font-bold mt-1 hidden"></div>
         </div>
         <div>
           <label class="block text-xs font-bold text-slate-500 mb-1">付款方式</label>
@@ -128,7 +129,22 @@
     let sigPad = null;
     let selectedPayMethod = '現金';
 
-    function selectPayMethod(method) {
+    function calcBonus(amt) {
+      if (!amt || amt < 1000) return 0;
+      return Math.floor(amt / 1000) * 100;
+    }
+
+    function updateBonusPreview() {
+      const amt = parseInt(document.getElementById('depositAmount').value) || 0;
+      const bonus = calcBonus(amt);
+      const preview = document.getElementById('bonusPreview');
+      if (bonus > 0) {
+        preview.innerText = `🎁 加贈 $${bonus}，實際入帳 $${amt + bonus}`;
+        preview.classList.remove('hidden');
+      } else {
+        preview.classList.add('hidden');
+      }
+    }
       selectedPayMethod = method;
       ['現金', '匯款', '刷卡'].forEach(m => {
         const btn = document.getElementById('payBtn_' + m);
@@ -172,8 +188,8 @@
       box.innerHTML = list.map(item => `
         <div class="p-3 bg-slate-50 rounded-lg border text-xs flex justify-between items-center gap-2">
           <div>
-            <div class="${item.type === 'deposit' ? 'text-emerald-600' : 'text-rose-600'} font-bold">
-              ${item.type === 'deposit' ? '儲值' : '扣款'} $${item.amount}
+            <div class="${item.type === 'deposit' ? 'text-emerald-600' : item.type === 'bonus' ? 'text-amber-600' : 'text-rose-600'} font-bold">
+              ${item.type === 'deposit' ? '儲值' : item.type === 'bonus' ? '🎁 加贈' : '扣款'} $${item.amount}
               ${item.payment_method ? `<span class="text-slate-400 font-normal">（${item.payment_method}）</span>` : ''}
             </div>
             <div class="text-slate-400 mt-1">${new Date(item.created_at).toLocaleString()} | 店員: ${item.clerk_name || '櫃檯'}</div>
@@ -268,12 +284,17 @@
       const clerk = document.getElementById('depositClerk').value.trim() || '櫃檯';
       if (!amt || amt <= 0) return alert('請輸入正確金額');
 
-      const newBal = currentMember.balance + amt;
+      const bonus = calcBonus(amt);
+      const newBal = currentMember.balance + amt + bonus;
       await db.from('members').update({ balance: newBal }).eq('id', currentMember.id);
       await db.from('transactions').insert([{ member_id: currentMember.id, type: 'deposit', amount: amt, clerk_name: clerk, payment_method: selectedPayMethod }]);
+      if (bonus > 0) {
+        await db.from('transactions').insert([{ member_id: currentMember.id, type: 'bonus', amount: bonus, clerk_name: clerk, payment_method: '贈送' }]);
+      }
 
-      alert('儲值成功！');
+      alert(bonus > 0 ? `儲值成功！加贈 $${bonus}` : '儲值成功！');
       document.getElementById('depositAmount').value = '';
+      document.getElementById('bonusPreview').classList.add('hidden');
       selectPayMethod('現金');
       searchMember();
     }

@@ -70,7 +70,7 @@
 
   <script>
     // ---- 密碼驗證（前端簡易防護，非絕對安全）----
-    const ADMIN_PASSWORD = "4229531"; // ← 改成你要的密碼
+    const ADMIN_PASSWORD = "4229531"; // 後台登入密碼
 
     function checkPwd() {
       const input = document.getElementById('adminPwd').value;
@@ -129,8 +129,8 @@
         <div class="p-3 bg-slate-50 rounded-lg border text-xs flex justify-between items-center">
           <div>
             <div class="font-bold">${item.members?.name || '未知'} (${item.members?.phone || '無'})</div>
-            <div class="${item.type === 'deposit' ? 'text-emerald-600' : 'text-rose-600'} font-bold">
-              ${item.type === 'deposit' ? '儲值' : '扣款'} $${item.amount}
+            <div class="${item.type === 'deposit' ? 'text-emerald-600' : item.type === 'bonus' ? 'text-amber-600' : 'text-rose-600'} font-bold">
+              ${item.type === 'deposit' ? '儲值' : item.type === 'bonus' ? '🎁 加贈' : '扣款'} $${item.amount}
               ${item.payment_method ? `<span class="text-slate-400 font-normal">（${item.payment_method}）</span>` : ''}
             </div>
             <div class="text-slate-400">${new Date(item.created_at).toLocaleString()} | 店員: ${item.clerk_name || '櫃檯'}</div>
