@@ -121,7 +121,6 @@
 
   <script>
     const SUPABASE_URL = 'https://lqypbzwdhklunquvrrer.supabase.co';
-    // ⚠️ 請去 Supabase 後台 Settings → API 核對這把 key 是否正確（之前發現跟 admin.html 不一致）
     const SUPABASE_KEY = 'sb_publishable_MDnkgICBUk1yzEH7yrpyVQ_aOOjvOfb';
     const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -145,6 +144,8 @@
         preview.classList.add('hidden');
       }
     }
+
+    function selectPayMethod(method) {
       selectedPayMethod = method;
       ['現金', '匯款', '刷卡'].forEach(m => {
         const btn = document.getElementById('payBtn_' + m);
@@ -301,4 +302,3 @@
   </script>
 </body>
 </html>
-
