@@ -119,6 +119,41 @@
     <img id="sigZoomImg" src="" class="max-w-full max-h-full bg-white rounded-lg shadow-2xl">
   </div>
 
+  <!-- 儲值成功收據彈窗 -->
+  <div id="depositReceiptModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-[70]">
+    <div class="bg-white w-full max-w-sm rounded-xl overflow-hidden shadow-2xl">
+      <div class="bg-emerald-600 text-white p-4 text-center">
+        <div class="text-3xl">✅</div>
+        <div class="font-bold text-lg mt-1">儲值成功</div>
+      </div>
+      <div class="p-5 space-y-3 text-sm">
+        <div class="flex justify-between border-b pb-2">
+          <span class="text-slate-500">會員姓名</span>
+          <span id="rcName" class="font-bold text-slate-800">-</span>
+        </div>
+        <div class="flex justify-between border-b pb-2">
+          <span class="text-slate-500">儲值金額</span>
+          <span id="rcAmount" class="font-bold text-slate-800">$0</span>
+        </div>
+        <div id="rcBonusRow" class="flex justify-between border-b pb-2 hidden">
+          <span class="text-slate-500">加贈金額</span>
+          <span id="rcBonus" class="font-bold text-amber-600">$0</span>
+        </div>
+        <div class="flex justify-between border-b pb-2">
+          <span class="text-slate-500">目前餘額</span>
+          <span id="rcBalance" class="font-bold text-emerald-600">$0</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-slate-500">日期時間</span>
+          <span id="rcDate" class="font-mono text-slate-800">-</span>
+        </div>
+      </div>
+      <div class="p-4 pt-0">
+        <button onclick="closeReceipt()" class="w-full bg-slate-800 text-white py-3 rounded-xl font-bold">關閉</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const SUPABASE_URL = 'https://lqypbzwdhklunquvrrer.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_MDnkgICBUk1yzEH7yrpyVQ_aOOjvOfb';
@@ -299,11 +334,33 @@
         await db.from('transactions').insert([{ member_id: currentMember.id, type: 'bonus', amount: bonus, clerk_name: clerk, payment_method: '贈送' }]);
       }
 
-      alert(bonus > 0 ? `儲值成功！加贈 $${bonus}` : '儲值成功！');
+      showReceipt(currentMember.name, amt, bonus, newBal);
       document.getElementById('depositAmount').value = '';
       document.getElementById('bonusPreview').classList.add('hidden');
       selectPayMethod('現金');
       searchMember();
+    }
+
+    function showReceipt(name, amt, bonus, balance) {
+      document.getElementById('rcName').innerText = name;
+      document.getElementById('rcAmount').innerText = '$' + amt;
+      document.getElementById('rcBalance').innerText = '$' + balance;
+      document.getElementById('rcDate').innerText = new Date().toLocaleString();
+      const bonusRow = document.getElementById('rcBonusRow');
+      if (bonus > 0) {
+        document.getElementById('rcBonus').innerText = '$' + bonus;
+        bonusRow.classList.remove('hidden');
+      } else {
+        bonusRow.classList.add('hidden');
+      }
+      const modal = document.getElementById('depositReceiptModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeReceipt() {
+      document.getElementById('depositReceiptModal').classList.add('hidden');
+      document.getElementById('depositReceiptModal').classList.remove('flex');
     }
   </script>
 </body>
